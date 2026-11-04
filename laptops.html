@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>سجل اللابتوبات</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap">
+<style>
+:root{--bg:#eef2f4;--surface:#fff;--ink:#14262e;--muted:#5d727c;--line:#d3dde2;--accent:#0e7c86;--accent-ink:#fff;--danger:#b3261e;--chip:#e2f1f2;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1b20;--surface:#172830;--ink:#e8f1f4;--muted:#93a9b2;--line:#27404a;--accent:#3cc0cb;--accent-ink:#0b1a1e;--danger:#ff8a80;--chip:#1d3a40}}
+:root[data-theme="dark"]{--bg:#0f1b20;--surface:#172830;--ink:#e8f1f4;--muted:#93a9b2;--line:#27404a;--accent:#3cc0cb;--accent-ink:#0b1a1e;--danger:#ff8a80;--chip:#1d3a40}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Cairo",system-ui,sans-serif;line-height:1.6}
+main{max-width:760px;margin:0 auto;padding:16px}
+h1{font-size:1.6rem;font-weight:800;margin:8px 0 16px}
+h2{font-size:1.1rem;font-weight:600;margin:0 0 12px}
+section{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.full{grid-column:1/-1}
+label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:2px}
+input{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+input:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button{font:inherit;font-weight:600;padding:10px 18px;border:0;border-radius:8px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+button.ghost{background:transparent;color:var(--danger);border:1px solid var(--line);padding:4px 12px;font-size:.85rem}
+.owner{margin-top:16px}
+.owner h3{margin:0 0 8px;font-size:1.05rem}
+.owner h3 span{background:var(--chip);border-radius:99px;padding:1px 10px;font-size:.8rem;margin-inline-start:8px}
+.card{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:8px;background:var(--bg)}
+.card dl{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;margin:0 0 8px}
+.card dt{color:var(--muted)}
+.card dd{margin:0;font-weight:600;word-break:break-all}
+.empty{color:var(--muted);text-align:center;padding:16px 0}
+.msg{margin-top:8px;font-size:.9rem;min-height:1.4em}
+.msg.err{color:var(--danger)}
+</style>
+</head>
+<body>
+<main>
+<h1>سجل اللابتوبات</h1>
+
+<section>
+<h2>إضافة لابتوب</h2>
+<div class="grid" id="form">
+<div class="full"><label for="owner">اسم صاحب اللابتوب</label><input id="owner" autocomplete="off"></div>
+<div><label for="serial">السيريال نمبر</label><input id="serial" dir="ltr" autocomplete="off"></div>
+<div><label for="model">الموديل</label><input id="model" dir="ltr" placeholder="Dell Latitude 5420" autocomplete="off"></div>
+<div><label for="cpu">المعالج (CPU)</label><input id="cpu" dir="ltr" placeholder="Core i5-1135G7" autocomplete="off"></div>
+<div><label for="ram">الرام (RAM)</label><input id="ram" dir="ltr" placeholder="16GB DDR4" autocomplete="off"></div>
+<div class="full"><label for="disk">الهارد</label><input id="disk" dir="ltr" placeholder="512GB SSD" autocomplete="off"></div>
+<div class="full"><button id="add" type="button">حفظ اللابتوب</button><div class="msg" id="msg" role="status"></div></div>
+</div>
+</section>
+
+<section>
+<h2>بحث بالاسم</h2>
+<input id="q" type="search" placeholder="اكتب اسم صاحب اللابتوب" autocomplete="off">
+<div id="results"></div>
+</section>
+</main>
+
+<script>
+var KEY="laptops-v1",data=[];
+function load(){try{var r=localStorage.getItem(KEY);data=r?JSON.parse(r):[]}catch(e){data=[]}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(data));return true}catch(e){return false}}
+function norm(s){return s.toLowerCase().replace(/[\u064B-\u065F]/g,"").replace(/[أإآ]/g,"ا").replace(/ة/g,"ه").replace(/ى/g,"ي").trim()}
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+var ids=["owner","serial","model","cpu","ram","disk"];
+function el(i){return document.getElementById(i)}
+function say(t,err){var m=el("msg");m.textContent=t;m.className="msg"+(err?" err":"")}
+el("add").onclick=function(){
+  var v={};
+  for(var i=0;i<ids.length;i++){v[ids[i]]=el(ids[i]).value.trim()}
+  for(var j=0;j<ids.length;j++){if(!v[ids[j]]){say("املأ كل الحقول قبل الحفظ.",true);el(ids[j]).focus();return}}
+  var dup=data.some(function(d){return norm(d.serial)===norm(v.serial)});
+  if(dup){say("السيريال نمبر ده مسجل قبل كده.",true);return}
+  data.push(v);
+  if(!save()){say("تم الحفظ مؤقتاً فقط، المتصفح مانع التخزين.",true)}else{say("تم حفظ اللابتوب.")}
+  ids.forEach(function(i){el(i).value=""});
+  el("owner").focus();render();
+};
+function render(){
+  var q=norm(el("q").value),box=el("results");
+  if(!q){box.innerHTML='<div class="empty">اكتب اسم عشان تشوف لابتوباته.</div>';return}
+  var found=data.filter(function(d){return norm(d.owner).indexOf(q)>-1});
+  if(!found.length){box.innerHTML='<div class="empty">مفيش نتائج للاسم ده.</div>';return}
+  var groups={};
+  found.forEach(function(d){var k=d.owner;(groups[k]=groups[k]||[]).push(d)});
+  var h="";
+  Object.keys(groups).forEach(function(name){
+    h+='<div class="owner"><h3>'+esc(name)+'<span>'+groups[name].length+' لابتوب</span></h3>';
+    groups[name].forEach(function(d){
+      h+='<div class="card"><dl>'
+      +'<dt>السيريال</dt><dd dir="ltr">'+esc(d.serial)+'</dd>'
+      +'<dt>الموديل</dt><dd dir="ltr">'+esc(d.model)+'</dd>'
+      +'<dt>CPU</dt><dd dir="ltr">'+esc(d.cpu)+'</dd>'
+      +'<dt>RAM</dt><dd dir="ltr">'+esc(d.ram)+'</dd>'
+      +'<dt>الهارد</dt><dd dir="ltr">'+esc(d.disk)+'</dd></dl>'
+      +'<button class="ghost" data-s="'+esc(d.serial)+'">حذف</button></div>';
+    });
+    h+='</div>';
+  });
+  box.innerHTML=h;
+}
+el("results").onclick=function(e){
+  var b=e.target,s=b.getAttribute&&b.getAttribute("data-s");
+  if(s===null||s===undefined)return;
+  if(!b.getAttribute("data-c")){b.setAttribute("data-c","1");b.textContent="اضغط تاني للتأكيد";setTimeout(function(){if(b.isConnected){b.removeAttribute("data-c");b.textContent="حذف"}},3000);return}
+  data=data.filter(function(d){return d.serial!==s});save();render();
+};
+el("q").oninput=render;
+load();render();
+</script>
+</body>
+</html>
